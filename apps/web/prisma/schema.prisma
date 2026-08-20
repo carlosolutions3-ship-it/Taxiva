@@ -28,13 +28,15 @@ model User {
   taxpayerType  String   @default("employee")
   filingStatus  String   @default("single")
   taxYear       Int      @default(2024)
+  emailRemindersEnabled Boolean @default(true)
   createdAt     DateTime @default(now())
 
-  sessions     Session[]
-  documents    Document[]
-  incomeItems  IncomeItem[]
-  expenseItems ExpenseItem[]
-  filingState  FilingState?
+  sessions           Session[]
+  documents          Document[]
+  incomeItems        IncomeItem[]
+  expenseItems       ExpenseItem[]
+  filingState        FilingState?
+  deductionDecisions DeductionDecision[]
 }
 
 model Session {
@@ -71,7 +73,7 @@ model IncomeItem {
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   documentId  String?
-  document    Document? @relation(fields: [documentId], references: [id])
+  document    Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
   source      String
   description String
   amount      Float
@@ -87,13 +89,31 @@ model ExpenseItem {
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   documentId  String?
-  document    Document? @relation(fields: [documentId], references: [id])
+  document    Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
   category    String
   description String
   amount      Float
   currency    String
   date        String
   createdAt   DateTime  @default(now())
+}
+
+// A user's decision on one deduction candidate. `candidateId` matches
+// DeductionCandidate.id from the tax engine (e.g. "us-deduction-software_subscriptions"),
+// which is stable per category+country. Nothing is ever "confirmed" by
+// the system itself — only a real user action writes this row, which is
+// exactly the distinction the product's deduction-status UI relies on.
+model DeductionDecision {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taxYear     Int
+  candidateId String
+  decision    String // "confirmed" | "not_eligible"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, taxYear, candidateId])
 }
 
 model FilingState {

@@ -1,10 +1,11 @@
 import type { AIProvider, ChatMessage } from "./provider";
-import type { TaxEstimate, DeductionCandidate, MissingDocument } from "@taxiva/tax-engine-core";
+import type { TaxEstimate, DeductionCandidate, MissingDocument, ExpenseItem, ExpenseCategory } from "@taxiva/tax-engine-core";
 
 export type AssistantContext = {
   estimate?: TaxEstimate;
   deductionCandidates?: DeductionCandidate[];
   missingDocuments?: MissingDocument[];
+  expenses?: ExpenseItem[];
   countryName?: string;
 };
 
@@ -13,12 +14,28 @@ function money(amount: number, currency: string): string {
   return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// A short, curated list of categories worth proactively asking about for
+// business/self-employed taxpayers — not an exhaustive list, and never
+// asserted as something the user definitely has. The assistant only ever
+// says "I don't see any X logged yet, worth checking" — the absence of
+// data, not an invented presence of it.
+const COMMONLY_CHECKED_CATEGORIES: { category: ExpenseCategory; label: string }[] = [
+  { category: "home_office", label: "Home office" },
+  { category: "software_subscriptions", label: "Software subscriptions" },
+  { category: "travel", label: "Business mileage and travel" },
+  { category: "professional_fees", label: "Professional services" },
+];
+
 /**
  * FREE TIER default. A deterministic, template-driven assistant that
  * reasons over the user's *actual* data (their real tax estimate,
- * deduction candidates, missing documents) rather than an LLM. It is
- * intentionally honest about being rule-based, not a general chatbot —
- * see docs/COST_STRATEGY.md for when to graduate to AnthropicProvider.
+ * deduction candidates, missing documents, expenses) rather than an LLM.
+ * It is intentionally honest about being rule-based, not a general
+ * chatbot — see docs/COST_STRATEGY.md for when to graduate to
+ * AnthropicProvider. Every number and every claim below traces back to a
+ * field on `ctx` — nothing is invented, and gaps are phrased as
+ * questions ("I don't see any X yet") rather than assertions about the
+ * user's finances.
  */
 export class MockAssistantProvider implements AIProvider {
   readonly name = "mock-local-assistant";
@@ -31,10 +48,14 @@ export class MockAssistantProvider implements AIProvider {
   }
 
   private respond(question: string, ctx: AssistantContext): string {
-    const { estimate, deductionCandidates = [], missingDocuments = [], countryName } = ctx;
+    const { estimate, deductionCandidates = [], missingDocuments = [], expenses = [], countryName } = ctx;
 
     if (!estimate) {
       return "I don't have any income or expense data for you yet. Upload a document or add a transaction, and I'll start estimating your taxes and looking for deductions.";
+    }
+
+    if (/what.*(missing|missed)|miss(ed)? anything|overlook|worth checking|review.*(everything|all|return|documents)/.test(question)) {
+      return this.reviewEverything(ctx);
     }
 
     if (/how much.*(owe|tax|pay)|total tax|tax due/.test(question)) {
@@ -62,6 +83,42 @@ export class MockAssistantProvider implements AIProvider {
       return `Here's the line-by-line breakdown:\n${lines}\n\nWarnings/assumptions:\n${estimate.warnings.map((w) => `• ${w}`).join("\n")}`;
     }
 
-    return "I can tell you your estimated tax due, explain the calculation, list deduction candidates, or list missing documents — try asking one of those. (I'm the free, local assistant; connect a real AI model for open-ended conversation — see docs/COST_STRATEGY.md.)";
+    return "I can tell you your estimated tax due, explain the calculation, list deduction candidates, list missing documents, or review everything for gaps — try asking \"did I miss anything?\" (I'm the free, local assistant; connect a real AI model for open-ended conversation — see docs/COST_STRATEGY.md.)";
+  }
+
+  /**
+   * The "did I miss anything?" response. Every line comes from real data:
+   * a real missing document, a real deduction candidate still needing
+   * confirmation, or the real absence of a commonly-relevant expense
+   * category. Nothing here asserts the user has an expense they haven't
+   * logged — only that it's worth them checking.
+   */
+  private reviewEverything(ctx: AssistantContext): string {
+    const { deductionCandidates = [], missingDocuments = [], expenses = [] } = ctx;
+    const areas: string[] = [];
+
+    const loggedCategories = new Set(expenses.map((e) => e.category));
+    for (const gap of COMMONLY_CHECKED_CATEGORIES) {
+      if (!loggedCategories.has(gap.category)) {
+        areas.push(`${gap.label} — I don't see any logged yet. Worth checking if this applies to you.`);
+      }
+    }
+
+    for (const c of deductionCandidates.filter((d) => d.requiresVerification)) {
+      areas.push(`${c.label} — flagged as a potential deduction (${money(c.amount, c.currency)}), but needs your confirmation before it counts toward your estimate.`);
+    }
+
+    for (const d of missingDocuments) {
+      areas.push(`${d.label} — ${d.reason}`);
+    }
+
+    if (areas.length === 0) {
+      return "I reviewed your income, transactions, and uploaded documents and didn't find anything obviously missing. That's not a guarantee your return is complete — it means nothing in what you've entered is flagging a gap right now.";
+    }
+
+    const shown = areas.slice(0, 6);
+    const numbered = shown.map((a, i) => `${i + 1}. ${a}`).join("\n");
+    const overflow = areas.length > shown.length ? `\n\n...and ${areas.length - shown.length} more — see the Deductions and Documents pages for the full list.` : "";
+    return `I reviewed your income, transactions, and uploaded documents. I found ${shown.length} area${shown.length === 1 ? "" : "s"} worth checking:\n\n${numbered}${overflow}`;
   }
 }

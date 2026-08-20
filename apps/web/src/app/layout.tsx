@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import { BRAND_DESCRIPTION, BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
 import "./globals.css";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Taxiva — AI tax assistant for the US and Philippines",
-  description:
-    "Upload documents, get an AI-drafted tax estimate, and prepare your filing — for the United States and the Philippines. Sandbox/demo build.",
+  title: `${BRAND_NAME} — ${BRAND_TAGLINE}`,
+  description: BRAND_DESCRIPTION,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body>{children}</body>
     </html>
   );

@@ -6,6 +6,17 @@ import type { CountryCode } from "@taxiva/tax-engine-core";
 import { prisma } from "./prisma";
 import { requireUser } from "./actions";
 
+// None of the actions in this file call redirect(). They're all invoked
+// from <ActionForm> (see components/ActionForm.tsx), which calls the
+// action directly and then explicitly runs router.refresh() client-side.
+// redirect() back to the same route a form was submitted from was found
+// to hang indefinitely in production — useFormStatus().pending never
+// cleared even though the server-side mutation completed — so refreshing
+// is left entirely to the client instead of Next's automatic post-action
+// revalidation. revalidatePath still runs so the Router Cache doesn't
+// serve stale data on the *next* visit to these routes from elsewhere
+// (e.g. clicking a sidebar link).
+
 export async function addIncomeAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const currency = user.country === "PH" ? "PHP" : "USD";
@@ -160,9 +171,48 @@ export async function uploadDocumentAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/dashboard");
-  revalidatePath("/dashboard/documents");
   revalidatePath("/dashboard/income");
   revalidatePath("/dashboard/expenses");
+  revalidatePath("/dashboard/documents");
+}
+
+export async function deleteDocumentAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const id = String(formData.get("id") ?? "");
+  await prisma.document.deleteMany({ where: { id, userId: user.id } });
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/income");
+  revalidatePath("/dashboard/expenses");
+  revalidatePath("/dashboard/documents");
+}
+
+async function setDeductionDecision(formData: FormData, decision: "confirmed" | "not_eligible"): Promise<void> {
+  const user = await requireUser();
+  const candidateId = String(formData.get("candidateId") ?? "");
+  if (!candidateId) return;
+  await prisma.deductionDecision.upsert({
+    where: { userId_taxYear_candidateId: { userId: user.id, taxYear: user.taxYear, candidateId } },
+    create: { userId: user.id, taxYear: user.taxYear, candidateId, decision },
+    update: { decision },
+  });
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/deductions");
+}
+
+export async function confirmDeductionAction(formData: FormData): Promise<void> {
+  await setDeductionDecision(formData, "confirmed");
+}
+
+export async function markDeductionNotEligibleAction(formData: FormData): Promise<void> {
+  await setDeductionDecision(formData, "not_eligible");
+}
+
+export async function resetDeductionDecisionAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const candidateId = String(formData.get("candidateId") ?? "");
+  await prisma.deductionDecision.deleteMany({ where: { userId: user.id, taxYear: user.taxYear, candidateId } });
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/deductions");
 }
 
 export async function updateSettingsAction(formData: FormData): Promise<void> {
@@ -179,23 +229,41 @@ export async function updateSettingsAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/settings");
 }
 
 const STAGE_ORDER = ["draft", "reviewed", "approved", "simulated_filed"] as const;
 
-export async function advanceFilingStageAction(): Promise<void> {
+/**
+ * Advances the filing stage by exactly one step from whatever stage the
+ * CLIENT believes it's currently at (passed as `fromStage`, a hidden
+ * field on the form). This is a compare-and-swap, not a blind
+ * read-then-write: two rapid clicks (e.g. an impatient double-click, or
+ * two requests that happen to overlap) both read the same starting stage
+ * and both compute the same "next" stage, so a naive read-modify-write
+ * would silently lose one of the two advances. updateMany's WHERE clause
+ * makes the second, stale call match zero rows and become a no-op
+ * instead of corrupting the sequence.
+ */
+export async function advanceFilingStageAction(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const fromStage = String(formData.get("fromStage") ?? "draft") as (typeof STAGE_ORDER)[number];
+  const fromIndex = Math.max(0, STAGE_ORDER.indexOf(fromStage));
+  const nextStage = STAGE_ORDER[Math.min(fromIndex + 1, STAGE_ORDER.length - 1)];
+
   const existing = await prisma.filingState.findUnique({ where: { userId: user.id } });
-  const currentStage = (existing?.currentStage ?? "draft") as (typeof STAGE_ORDER)[number];
-  const currentIndex = STAGE_ORDER.indexOf(currentStage);
-  const nextStage = STAGE_ORDER[Math.min(currentIndex + 1, STAGE_ORDER.length - 1)];
+  if (!existing) {
+    await prisma.filingState.create({
+      data: { userId: user.id, country: user.country, taxYear: user.taxYear, currentStage: nextStage },
+    });
+  } else {
+    await prisma.filingState.updateMany({
+      where: { userId: user.id, currentStage: fromStage },
+      data: { currentStage: nextStage, country: user.country, taxYear: user.taxYear },
+    });
+  }
 
-  await prisma.filingState.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id, country: user.country, taxYear: user.taxYear, currentStage: nextStage },
-    update: { currentStage: nextStage, country: user.country, taxYear: user.taxYear },
-  });
-
+  revalidatePath("/dashboard");
   revalidatePath("/dashboard/filing");
 }
 
@@ -206,5 +274,6 @@ export async function resetFilingStageAction(): Promise<void> {
     create: { userId: user.id, country: user.country, taxYear: user.taxYear, currentStage: "draft" },
     update: { currentStage: "draft" },
   });
+  revalidatePath("/dashboard");
   revalidatePath("/dashboard/filing");
 }

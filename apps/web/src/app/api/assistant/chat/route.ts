@@ -13,12 +13,13 @@ export async function POST(req: NextRequest) {
     messages: { role: "user" | "assistant"; content: string }[];
   };
 
-  const { estimate, deductionCandidates, missingDocuments, engine } = await getUserTaxContext(user);
+  const { estimate, deductionCandidates, missingDocuments, expenses, engine } = await getUserTaxContext(user);
   const provider = getAIProvider();
   const reply = await provider.chat(messages, {
     estimate,
     deductionCandidates,
     missingDocuments,
+    expenses,
     countryName: engine.countryName,
   });
 
