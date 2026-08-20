@@ -1,0 +1,19 @@
+{
+  "name": "@taxiva/tax-engine-ph",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Philippines (BIR) tax engine for Taxiva. Educational estimate only — every rule is flagged for verification against current BIR issuances. Not tax advice.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@taxiva/tax-engine-core": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.7"
+  }
+}

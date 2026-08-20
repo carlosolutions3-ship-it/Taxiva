@@ -1,0 +1,22 @@
+{
+  "name": "taxiva",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Taxiva — an AI-native, multi-country tax platform. Modular tax engines for the United States and the Philippines, shared AI/document infrastructure, and a $0-to-start architecture.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev": "npm run dev --workspace apps/web",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

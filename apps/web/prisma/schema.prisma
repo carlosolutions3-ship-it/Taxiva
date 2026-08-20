@@ -1,0 +1,107 @@
+// Taxiva database schema.
+//
+// FREE TIER (default here): SQLite, a single file on disk — $0, zero
+// external services, works fully offline for local development and demos.
+//
+// CHEAP / SCALE: switch `provider` to "postgresql" and point `url` at a
+// Supabase, Neon, or Railway free/paid Postgres instance — see
+// docs/COST_STRATEGY.md. The schema below is intentionally
+// Postgres-compatible (no SQLite-only types) so that migration is just a
+// provider + connection string change, not a rewrite.
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  passwordSalt  String
+  displayName   String?
+  country       String   @default("US") // CountryCode: "US" | "PH"
+  taxpayerType  String   @default("employee")
+  filingStatus  String   @default("single")
+  taxYear       Int      @default(2024)
+  createdAt     DateTime @default(now())
+
+  sessions     Session[]
+  documents    Document[]
+  incomeItems  IncomeItem[]
+  expenseItems ExpenseItem[]
+  filingState  FilingState?
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filename           String
+  mimeType           String
+  ocrText            String?
+  ocrConfidence      Float?
+  ocrEngine          String?
+  extractedVendor    String?
+  extractedAmount    Float?
+  extractedCurrency  String?
+  extractedDate      String?
+  status             String   @default("processed") // uploaded | processing | processed | failed
+  createdAt          DateTime @default(now())
+
+  incomeItems  IncomeItem[]
+  expenseItems ExpenseItem[]
+}
+
+model IncomeItem {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId  String?
+  document    Document? @relation(fields: [documentId], references: [id])
+  source      String
+  description String
+  amount      Float
+  currency    String
+  date        String
+  platform    String?
+  withheldTax Float?
+  createdAt   DateTime  @default(now())
+}
+
+model ExpenseItem {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId  String?
+  document    Document? @relation(fields: [documentId], references: [id])
+  category    String
+  description String
+  amount      Float
+  currency    String
+  date        String
+  createdAt   DateTime  @default(now())
+}
+
+model FilingState {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country      String
+  taxYear      Int
+  currentStage String   @default("draft")
+  updatedAt    DateTime @updatedAt
+}
