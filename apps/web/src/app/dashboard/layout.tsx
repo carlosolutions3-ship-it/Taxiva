@@ -25,6 +25,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <span className="hidden sm:inline">
               <StatusBadge tone="warning">Sandbox mode</StatusBadge>
             </span>
+            {user.isDemo && (
+              <StatusBadge tone="brand">Demo account — fictional data</StatusBadge>
+            )}
           </div>
           <form action={logoutAction}>
             <button type="submit" className="btn-ghost text-xs">

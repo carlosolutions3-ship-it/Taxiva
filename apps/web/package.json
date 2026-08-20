@@ -8,14 +8,15 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "db:seed:demo": "tsx prisma/seed-demo.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",
-    "@taxiva/tax-engine-core": "*",
-    "@taxiva/tax-engine-us": "*",
-    "@taxiva/tax-engine-ph": "*",
     "@taxiva/document-ai": "*",
+    "@taxiva/tax-engine-core": "*",
+    "@taxiva/tax-engine-ph": "*",
+    "@taxiva/tax-engine-us": "*",
     "next": "15.5.23",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -28,6 +29,7 @@
     "postcss": "^8.4.47",
     "prisma": "^5.21.1",
     "tailwindcss": "^3.4.13",
+    "tsx": "^4.23.12",
     "typescript": "^5.6.3",
     "vitest": "^3.2.7"
   }

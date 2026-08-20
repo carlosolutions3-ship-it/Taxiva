@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { loginAction } from "@/lib/actions";
+import { demoLoginAction, loginAction } from "@/lib/actions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { BRAND_NAME } from "@/lib/brand";
 import { AlertIcon } from "@/components/icons";
@@ -43,6 +43,25 @@ export default async function LoginPage({
         <p className="mt-4 text-center text-sm text-ink-500">
           New to {BRAND_NAME}? <Link href="/register" className="font-medium text-brand-700 hover:underline">Create a free account</Link>
         </p>
+
+        <div className="mt-6 border-t border-ink-200 pt-6">
+          <p className="text-center text-xs font-medium uppercase tracking-wide text-ink-400">
+            Or explore a demo account
+          </p>
+          <p className="mt-1.5 text-center text-xs text-ink-500">
+            Pre-loaded with fictional sample data — no real information, nothing is ever filed.
+          </p>
+          <div className="mt-3 flex gap-3">
+            <form action={demoLoginAction} className="flex-1">
+              <input type="hidden" name="country" value="US" />
+              <button type="submit" className="btn-secondary w-full">🇺🇸 US freelancer demo</button>
+            </form>
+            <form action={demoLoginAction} className="flex-1">
+              <input type="hidden" name="country" value="PH" />
+              <button type="submit" className="btn-secondary w-full">🇵🇭 PH freelancer demo</button>
+            </form>
+          </div>
+        </div>
       </div>
     </main>
   );

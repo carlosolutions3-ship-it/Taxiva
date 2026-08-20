@@ -54,6 +54,26 @@ export async function loginAction(formData: FormData): Promise<void> {
   redirect("/dashboard");
 }
 
+// Hardcoded to exactly the two seeded demo accounts (see
+// prisma/seed-demo.ts) — this cannot be used to log in as an arbitrary
+// user, only to enter one of the two pre-built, clearly-labeled demo
+// accounts. No password is required by design: it's a "try it now" door,
+// not an auth bypass for real accounts.
+const DEMO_EMAILS: Record<"US" | "PH", string> = {
+  US: "demo-us@fyleo.demo",
+  PH: "demo-ph@fyleo.demo",
+};
+
+export async function demoLoginAction(formData: FormData): Promise<void> {
+  const country = String(formData.get("country") ?? "US") === "PH" ? "PH" : "US";
+  const user = await prisma.user.findUnique({ where: { email: DEMO_EMAILS[country] } });
+  if (!user || !user.isDemo) {
+    redirect("/login?error=" + encodeURIComponent("Demo account isn't seeded yet. Run `npm run db:seed:demo` in apps/web."));
+  }
+  await createSession(user!.id);
+  redirect("/dashboard");
+}
+
 export async function logoutAction(): Promise<void> {
   await destroySession();
   redirect("/");

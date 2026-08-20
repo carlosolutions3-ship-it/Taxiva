@@ -29,6 +29,7 @@ model User {
   filingStatus  String   @default("single")
   taxYear       Int      @default(2024)
   emailRemindersEnabled Boolean @default(true)
+  isDemo        Boolean  @default(false)
   createdAt     DateTime @default(now())
 
   sessions           Session[]
